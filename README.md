@@ -1,18 +1,36 @@
 # Riftboard
 
-To start your Phoenix server:
+Riftboard is a real-time kanban/issue board built as a portfolio project to showcase Elixir/Phoenix/LiveView experience.
 
-  * Run `mix setup` to install and setup dependencies
-  * Start Phoenix endpoint with `mix phx.server` or inside IEx with `iex -S mix phx.server`
+## Features
 
-Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
+- Create and manage multiple boards
+- Add, reorder, and delete columns
+- Add, edit, and delete cards with titles and descriptions
+- Drag-and-drop card reordering across columns (Sortable.js)
+- Live validation on all forms
 
-Ready to run in production? Please [check our deployment guides](https://hexdocs.pm/phoenix/deployment.html).
+## Tech stack
 
-## Learn more
+- **Elixir / Phoenix 1.7** — backend and routing
+- **Phoenix LiveView 1.0** — real-time UI without writing JavaScript
+- **Ecto / PostgreSQL** — data persistence with transactional card reordering
+- **Tailwind CSS** — styling
+- **Sortable.js** — drag-and-drop via a Phoenix JS hook
 
-  * Official website: https://www.phoenixframework.org/
-  * Guides: https://hexdocs.pm/phoenix/overview.html
-  * Docs: https://hexdocs.pm/phoenix
-  * Forum: https://elixirforum.com/c/phoenix-forum
-  * Source: https://github.com/phoenixframework/phoenix
+## Running locally
+
+You'll need Elixir, Erlang, and PostgreSQL installed.
+
+```bash
+# Install dependencies
+mix setup
+
+# Start the server
+mix phx.server
+```
+
+## Quality
+
+Unit and Liveview tests
+Utilises credo and dialyzer for type safety and code analysis/standard
