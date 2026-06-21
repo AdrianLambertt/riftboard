@@ -1,8 +1,8 @@
 defmodule RiftboardWeb.PageControllerTest do
   use RiftboardWeb.ConnCase
 
-  test "GET /", %{conn: conn} do
+  test "GET / redirects to /boards", %{conn: conn} do
     conn = get(conn, ~p"/")
-    assert html_response(conn, 200) =~ "Peace of mind from prototype to production"
+    assert redirected_to(conn) == ~p"/boards"
   end
 end
