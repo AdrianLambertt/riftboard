@@ -4,6 +4,10 @@ defmodule RiftboardWeb.BoardLive.Index do
   alias Riftboard.Boards.Board
 
   def mount(_params, _session, socket) do
+    if connected?(socket) do
+      Phoenix.PubSub.subscribe(Riftboard.PubSub, "board_updates")
+    end
+
     {:ok, assign(socket, boards: Boards.list_boards_with_columns(), form: nil)}
   end
 
@@ -40,7 +44,12 @@ defmodule RiftboardWeb.BoardLive.Index do
   def handle_event("delete_board", %{"id" => id}, socket) do
     board = Boards.get_board(id)
     {:ok, _} = Boards.delete_board(board)
-    {:noreply, assign(socket, boards: Boards.list_boards_with_columns())}
+    boards = Enum.reject(socket.assigns.boards, &(&1.id == board.id))
+    {:noreply, assign(socket, boards: boards)}
+  end
+
+  def handle_info({:board_updates, {%Board{} = updated_board, action}}, socket) do
+    {:noreply, assign(socket, boards: alter_board(socket.assigns.boards, updated_board, action))}
   end
 
   def render(assigns) do
@@ -62,7 +71,7 @@ defmodule RiftboardWeb.BoardLive.Index do
       </div>
 
       <div class="divide-y divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200 bg-white">
-        <div :for={board <- @boards} class="group flex items-stretch">
+        <div :for={board <- @boards} id={"board-#{board.id}"} class="group flex items-stretch">
           <.link
             navigate={~p"/boards/#{board.id}"}
             class="flex-1 px-6 py-4 transition-colors hover:bg-zinc-50"
@@ -117,5 +126,22 @@ defmodule RiftboardWeb.BoardLive.Index do
       </.simple_form>
     </.modal>
     """
+  end
+
+  defp alter_board(boards, action_board, :add) do
+    boards ++ [action_board]
+  end
+
+  defp alter_board(boards, action_board, :update) do
+    id = action_board.id
+
+    Enum.map(boards, fn
+      %{id: ^id} -> action_board
+      board -> board
+    end)
+  end
+
+  defp alter_board(boards, action_board, :delete) do
+    Enum.reject(boards, &(&1.id == action_board.id))
   end
 end

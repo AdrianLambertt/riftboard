@@ -95,6 +95,74 @@ defmodule RiftboardWeb.BoardLive.IndexTest do
   end
 
   # ---------------------------------------------------------------------------
+  # PubSub — real-time index updates
+  # ---------------------------------------------------------------------------
+
+  describe "PubSub" do
+    test "shows a board created from another session", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/boards")
+      refute render(lv) =~ "Remote Board"
+
+      Boards.create_board(Board.changeset(%Board{}, %{"name" => "Remote Board"}))
+
+      assert render(lv) =~ "Remote Board"
+    end
+
+    test "removes a board deleted from another session", %{conn: conn} do
+      board = create_board!(%{"name" => "Ephemeral Board"})
+      {:ok, lv, _html} = live(conn, ~p"/boards")
+      assert render(lv) =~ "Ephemeral Board"
+
+      Boards.delete_board(board)
+
+      refute render(lv) =~ "Ephemeral Board"
+    end
+
+    test "reflects a new column added from another session", %{conn: conn} do
+      board = create_board!(%{"name" => "Multi-Column Board"})
+      {:ok, lv, _html} = live(conn, ~p"/boards")
+
+      Boards.create_column_for_board(board, %{"name" => "In Review"})
+
+      assert render(lv) =~ "In Review"
+    end
+
+    test "reflects a card added to a column from another session", %{conn: conn} do
+      board = create_board!(%{"name" => "Card Count Board"})
+      todo_col = Riftboard.Repo.preload(board, :columns).columns |> Enum.find(&(&1.name == "To Do"))
+      {:ok, lv, _html} = live(conn, ~p"/boards")
+
+      Boards.create_card_for_column(todo_col, %{"title" => "Remote Task"})
+
+      assert render(lv) =~ "1"
+    end
+
+    test "removes a column deleted from another session", %{conn: conn} do
+      board = create_board!(%{"name" => "Column Delete Board"})
+      {:ok, col} = Boards.create_column_for_board(board, %{"name" => "Doomed Column"})
+      {:ok, lv, _html} = live(conn, ~p"/boards")
+      assert render(lv) =~ "Doomed Column"
+
+      Boards.delete_column(col)
+
+      refute render(lv) =~ "Doomed Column"
+    end
+
+    test "updates card count when a card is deleted from another session", %{conn: conn} do
+      board = create_board!(%{"name" => "Card Delete Board"})
+      todo_col = Riftboard.Repo.preload(board, :columns).columns |> Enum.find(&(&1.name == "To Do"))
+      {:ok, card} = Boards.create_card_for_column(todo_col, %{"title" => "Removable"})
+      {:ok, lv, _html} = live(conn, ~p"/boards")
+
+      assert element(lv, "#board-#{board.id} .text-2xl") |> render() =~ "1"
+
+      Boards.delete_card(card)
+
+      assert element(lv, "#board-#{board.id} .text-2xl") |> render() =~ "0"
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # delete board
   # ---------------------------------------------------------------------------
 

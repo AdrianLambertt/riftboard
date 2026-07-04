@@ -34,20 +34,36 @@ defmodule Riftboard.Boards do
   end
 
   def create_board(changeset) do
-    Repo.transact(fn ->
-      with {:ok, board} <- Repo.insert(changeset),
-           {:ok, _col} <- create_column_for_board(board, %{"name" => "To Do"}) do
-        {:ok, board}
-      end
-    end)
+    result =
+      Repo.transact(fn ->
+        with {:ok, board} <- Repo.insert(changeset),
+             {:ok, _col} <- create_column_for_board(board, %{"name" => "To Do"}) do
+          {:ok, Repo.preload(board, columns: :cards)}
+        end
+      end)
+
+    broadcast_board_change(result, :add)
+    result
   end
 
   def update_board(changeset) do
-    Repo.update(changeset)
+    result = Repo.update(changeset)
+    broadcast_board_change(result, :update)
+    result
   end
 
   def delete_board(board) do
-    Repo.delete(board)
+    result = Repo.delete(board)
+    broadcast_board_change(result, :delete)
+    result
+  end
+
+  def broadcast_board_change({:error, _board}, _) do
+    :pass
+  end
+
+  def broadcast_board_change({:ok, board}, action) when action in [:add, :update, :delete] do
+    Phoenix.PubSub.broadcast(Riftboard.PubSub, "board_updates", {:board_updates, {board, action}})
   end
 
   # ---------------------------------------------------------------------------
@@ -56,7 +72,7 @@ defmodule Riftboard.Boards do
 
   def get_column(id), do: Repo.get(Column, id)
 
-  def create_column_for_board(%Board{id: board_id}, attrs) do
+  def create_column_for_board(%Board{id: board_id} = board, attrs) do
     next_pos =
       from(c in Column, where: c.board_id == ^board_id, select: max(c.position))
       |> Repo.one()
@@ -65,11 +81,17 @@ defmodule Riftboard.Boards do
         pos -> pos + 1
       end
 
-    %Column{}
-    |> Column.changeset(attrs)
-    |> Ecto.Changeset.put_change(:position, next_pos)
-    |> Ecto.Changeset.put_change(:board_id, board_id)
-    |> Repo.insert()
+    {status, result} =
+      %Column{}
+      |> Column.changeset(attrs)
+      |> Ecto.Changeset.put_change(:position, next_pos)
+      |> Ecto.Changeset.put_change(:board_id, board_id)
+      |> Repo.insert()
+
+    board = Repo.preload(board, [columns: :cards], force: true)
+    broadcast_board_change({status, board}, :update)
+
+    {status, result}
   end
 
   def create_column(changeset) do
@@ -81,7 +103,10 @@ defmodule Riftboard.Boards do
   end
 
   def delete_column(column) do
-    Repo.delete(column)
+    {status, result} = Repo.delete(column)
+    board = Repo.get(Board, column.board_id) |> Repo.preload([columns: :cards], force: true)
+    broadcast_board_change({status, board}, :update)
+    {status, result}
   end
 
   # ---------------------------------------------------------------------------
@@ -99,11 +124,26 @@ defmodule Riftboard.Boards do
         pos -> pos + 1
       end
 
-    %Card{}
-    |> Card.changeset(attrs)
-    |> Ecto.Changeset.put_change(:position, next_pos)
-    |> Ecto.Changeset.put_change(:column_id, column_id)
-    |> Repo.insert()
+    {status, result} =
+      %Card{}
+      |> Card.changeset(attrs)
+      |> Ecto.Changeset.put_change(:position, next_pos)
+      |> Ecto.Changeset.put_change(:column_id, column_id)
+      |> Repo.insert()
+
+    board =
+      from(b in Board,
+        join: col in Column,
+        on: col.board_id == b.id,
+        where: col.id == ^column_id,
+        select: b
+      )
+      |> Repo.one()
+
+    board = Repo.preload(board, [columns: :cards], force: true)
+    broadcast_board_change({status, board}, :update)
+
+    {status, result}
   end
 
   def create_card(changeset) do
@@ -115,7 +155,11 @@ defmodule Riftboard.Boards do
   end
 
   def delete_card(card) do
-    Repo.delete(card)
+    {status, result} = Repo.delete(card)
+    column = Repo.get(Column, card.column_id)
+    board = Repo.get(Board, column.board_id) |> Repo.preload([columns: :cards], force: true)
+    broadcast_board_change({status, board}, :update)
+    {status, result}
   end
 
   def move_card(card, column_id, position) do
@@ -134,7 +178,8 @@ defmodule Riftboard.Boards do
 
   defp same_column_move(card, target) when target < card.position do
     from(c in Card,
-      where: c.column_id == ^card.column_id and c.position >= ^target and c.position < ^card.position
+      where:
+        c.column_id == ^card.column_id and c.position >= ^target and c.position < ^card.position
     )
     |> Repo.update_all(inc: [position: 1])
 
@@ -144,7 +189,8 @@ defmodule Riftboard.Boards do
 
   defp same_column_move(card, target) do
     from(c in Card,
-      where: c.column_id == ^card.column_id and c.position > ^card.position and c.position <= ^target
+      where:
+        c.column_id == ^card.column_id and c.position > ^card.position and c.position <= ^target
     )
     |> Repo.update_all(inc: [position: -1])
 

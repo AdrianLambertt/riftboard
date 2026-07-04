@@ -12,9 +12,6 @@ defmodule Riftboard.Application do
       Riftboard.Repo,
       {DNSCluster, query: Application.get_env(:riftboard, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Riftboard.PubSub},
-      # Start a worker by calling: Riftboard.Worker.start_link(arg)
-      # {Riftboard.Worker, arg},
-      # Start to serve requests, typically the last entry
       RiftboardWeb.Endpoint
     ]
 
