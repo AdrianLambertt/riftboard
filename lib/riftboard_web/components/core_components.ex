@@ -17,7 +17,7 @@ defmodule RiftboardWeb.CoreComponents do
   use Phoenix.Component
 
   alias Phoenix.LiveView.JS
-  import RiftboardWeb.Gettext
+  use Gettext, backend: RiftboardWeb.Gettext
 
   @doc """
   Renders a modal.

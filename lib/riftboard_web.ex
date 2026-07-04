@@ -43,7 +43,7 @@ defmodule RiftboardWeb do
         layouts: [html: RiftboardWeb.Layouts]
 
       import Plug.Conn
-      import RiftboardWeb.Gettext
+      use Gettext, backend: RiftboardWeb.Gettext
 
       unquote(verified_routes())
     end
@@ -85,7 +85,7 @@ defmodule RiftboardWeb do
       import Phoenix.HTML
       # Core UI components and translation
       import RiftboardWeb.CoreComponents
-      import RiftboardWeb.Gettext
+      use Gettext, backend: RiftboardWeb.Gettext
 
       # Shortcut for generating JS commands
       alias Phoenix.LiveView.JS
