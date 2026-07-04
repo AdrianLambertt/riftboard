@@ -120,17 +120,46 @@ defmodule Riftboard.Boards do
 
   def move_card(card, column_id, position) do
     Repo.transact(fn ->
-      from(c in Card,
-        where: c.position >= ^position and c.column_id == ^column_id and c.id != ^card.id,
-        order_by: [asc: c.position]
-      )
-      |> Repo.all()
-      |> Enum.each(&(Card.move_changeset(&1, %{position: &1.position + 1}) |> Repo.update!()))
-
-      # use of update! due to enum.each swallowing return - would ignore individual failure otherwise
-
-      Card.move_changeset(card, %{column_id: column_id, position: position})
-      |> Repo.update()
+      if card.column_id == column_id do
+        same_column_move(card, position)
+      else
+        cross_column_move(card, column_id, position)
+      end
     end)
+  end
+
+  defp same_column_move(card, target) when target == card.position do
+    {:ok, card}
+  end
+
+  defp same_column_move(card, target) when target < card.position do
+    from(c in Card,
+      where: c.column_id == ^card.column_id and c.position >= ^target and c.position < ^card.position
+    )
+    |> Repo.update_all(inc: [position: 1])
+
+    Card.move_changeset(card, %{column_id: card.column_id, position: target})
+    |> Repo.update()
+  end
+
+  defp same_column_move(card, target) do
+    from(c in Card,
+      where: c.column_id == ^card.column_id and c.position > ^card.position and c.position <= ^target
+    )
+    |> Repo.update_all(inc: [position: -1])
+
+    Card.move_changeset(card, %{column_id: card.column_id, position: target})
+    |> Repo.update()
+  end
+
+  defp cross_column_move(card, dest_column_id, target) do
+    from(c in Card, where: c.column_id == ^card.column_id and c.position > ^card.position)
+    |> Repo.update_all(inc: [position: -1])
+
+    from(c in Card, where: c.column_id == ^dest_column_id and c.position >= ^target)
+    |> Repo.update_all(inc: [position: 1])
+
+    Card.move_changeset(card, %{column_id: dest_column_id, position: target})
+    |> Repo.update()
   end
 end

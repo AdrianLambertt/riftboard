@@ -18,10 +18,11 @@ defmodule RiftboardWeb.BoardLive.ShowTest do
   end
 
   defp get_todo_column(board) do
-    Riftboard.Repo.preload(board, :columns).columns |> hd()
+    Riftboard.Repo.preload(board, :columns).columns
+    |> Enum.find(&(&1.name == "To Do"))
   end
 
-  defp create_card!(column, attrs \\ %{}) do
+  defp create_card!(column, attrs) do
     {:ok, card} = Boards.create_card_for_column(column, Map.merge(%{"title" => "A Card"}, attrs))
     card
   end

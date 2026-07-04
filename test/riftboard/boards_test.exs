@@ -227,45 +227,60 @@ defmodule Riftboard.BoardsTest do
   # ---------------------------------------------------------------------------
 
   describe "move_card/3" do
-    test "moves card to a new position within the same column, shifting others up" do
+    test "moves card up within the same column, shifting others down" do
       board = create_board!()
       col = create_column!(board)
       c0 = create_card!(col, %{"title" => "C0"})
       c1 = create_card!(col, %{"title" => "C1"})
       c2 = create_card!(col, %{"title" => "C2"})
 
-      # move c2 to position 0 — c0 and c1 should shift up
       assert {:ok, moved} = Boards.move_card(c2, col.id, 0)
       assert moved.position == 0
-
       assert Boards.get_card(c0.id).position == 1
       assert Boards.get_card(c1.id).position == 2
     end
 
-    test "moves card to a different column" do
+    test "moves card down within the same column, shifting others up" do
       board = create_board!()
-      col_a = create_column!(board, %{"name" => "A"})
-      col_b = create_column!(board, %{"name" => "B"})
+      col = create_column!(board)
+      c0 = create_card!(col, %{"title" => "C0"})
+      c1 = create_card!(col, %{"title" => "C1"})
+      c2 = create_card!(col, %{"title" => "C2"})
 
-      card = create_card!(col_a, %{"title" => "Traveller"})
-      b0 = create_card!(col_b, %{"title" => "B0"})
-
-      assert {:ok, moved} = Boards.move_card(card, col_b.id, 0)
-      assert moved.column_id == col_b.id
-      assert moved.position == 0
-
-      assert Boards.get_card(b0.id).position == 1
+      assert {:ok, moved} = Boards.move_card(c0, col.id, 2)
+      assert moved.position == 2
+      assert Boards.get_card(c1.id).position == 0
+      assert Boards.get_card(c2.id).position == 1
     end
 
-    test "does not shift the card being moved when it is already in the target column" do
+    test "no-op move returns card unchanged without corrupting positions" do
       board = create_board!()
       col = create_column!(board)
       c0 = create_card!(col, %{"title" => "C0"})
       c1 = create_card!(col, %{"title" => "C1"})
 
-      assert {:ok, moved} = Boards.move_card(c1, col.id, 1)
-      assert moved.position == 1
-      assert Boards.get_card(c0.id).position == 0
+      assert {:ok, moved} = Boards.move_card(c0, col.id, 0)
+      assert moved.position == 0
+      assert Boards.get_card(c1.id).position == 1
+    end
+
+    test "moves card to a different column and compacts the source" do
+      board = create_board!()
+      col_a = create_column!(board, %{"name" => "A"})
+      col_b = create_column!(board, %{"name" => "B"})
+
+      a0 = create_card!(col_a, %{"title" => "A0"})
+      a1 = create_card!(col_a, %{"title" => "A1"})
+      b0 = create_card!(col_b, %{"title" => "B0"})
+
+      assert {:ok, moved} = Boards.move_card(a0, col_b.id, 0)
+      assert moved.column_id == col_b.id
+      assert moved.position == 0
+
+      # destination shifted to make room
+      assert Boards.get_card(b0.id).position == 1
+      # source compacted — gap at position 0 filled
+      assert Boards.get_card(a1.id).position == 0
     end
   end
 end

@@ -6,7 +6,7 @@ defmodule RiftboardWeb.BoardLive.IndexTest do
   alias Riftboard.Boards
   alias Riftboard.Boards.Board
 
-  defp create_board!(attrs \\ %{}) do
+  defp create_board!(attrs) do
     {:ok, board} =
       Boards.create_board(Board.changeset(%Board{}, Map.merge(%{"name" => "Test Board"}, attrs)))
 
