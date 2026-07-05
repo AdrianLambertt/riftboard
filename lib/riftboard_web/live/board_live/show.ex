@@ -56,7 +56,11 @@ defmodule RiftboardWeb.BoardLive.Show do
   # --- Cards ---
 
   def handle_event("show_add_card", %{"column_id" => column_id}, socket) do
-    form = to_form(Card.changeset(%Card{}, %{}))
+    # A unique id per column ensures switching directly between columns' forms
+    # is a genuine remove+insert (so the AutoFocus hook remounts), not a DOM
+    # node move — the id would otherwise be identical ("card_title") every time.
+    form = to_form(Card.changeset(%Card{}, %{}), id: "card-form-#{column_id}")
+
     {:noreply, assign(socket, adding_card_to: column_id, card_form: form)}
   end
 
@@ -83,7 +87,9 @@ defmodule RiftboardWeb.BoardLive.Show do
 
   def handle_event("open_card", %{"id" => id}, socket) do
     card = Boards.get_card(id)
-    {:noreply, assign(socket, active_card: card, card_edit_form: to_form(Card.changeset(card, %{})))}
+
+    {:noreply,
+     assign(socket, active_card: card, card_edit_form: to_form(Card.changeset(card, %{})))}
   end
 
   def handle_event("close_card", _params, socket) do
@@ -129,7 +135,11 @@ defmodule RiftboardWeb.BoardLive.Show do
      )}
   end
 
-  def handle_event("card_moved", %{"card_id" => card_id, "column_id" => column_id, "position" => position}, socket) do
+  def handle_event(
+        "card_moved",
+        %{"card_id" => card_id, "column_id" => column_id, "position" => position},
+        socket
+      ) do
     card = Boards.get_card(card_id)
     {:ok, _} = Boards.move_card(card, column_id, position)
     {:noreply, assign(socket, board: reload_board(socket))}
@@ -145,6 +155,7 @@ defmodule RiftboardWeb.BoardLive.Show do
       <.link navigate={~p"/boards"} class="text-zinc-400 transition-colors hover:text-zinc-600">
         <.icon name="hero-arrow-left" class="h-5 w-5" />
       </.link>
+      
       <h1 class="text-lg font-bold text-zinc-900">{@board.name}</h1>
     </div>
 
@@ -157,6 +168,7 @@ defmodule RiftboardWeb.BoardLive.Show do
       >
         <div class="flex items-center justify-between px-3 pb-2 pt-3">
           <h2 class="text-sm font-semibold text-zinc-700">{column.name}</h2>
+          
           <button
             phx-click="delete_column"
             phx-value-id={column.id}
@@ -166,7 +178,7 @@ defmodule RiftboardWeb.BoardLive.Show do
             <.icon name="hero-x-mark" class="h-4 w-4" />
           </button>
         </div>
-
+        
         <div
           id={"cards-#{column.id}"}
           data-column-id={column.id}
@@ -182,6 +194,7 @@ defmodule RiftboardWeb.BoardLive.Show do
             class="cursor-pointer rounded-lg bg-white px-3 py-2.5 shadow-sm transition-shadow hover:shadow"
           >
             <p class="text-sm font-medium leading-snug text-zinc-900">{card.title}</p>
+            
             <p
               :if={card.description && card.description != ""}
               class="mt-1 line-clamp-2 text-xs text-zinc-500"
@@ -189,7 +202,7 @@ defmodule RiftboardWeb.BoardLive.Show do
               {card.description}
             </p>
           </div>
-
+          
           <div :if={@adding_card_to == column.id} class="rounded-lg bg-white px-3 py-2 shadow-sm">
             <.form for={@card_form} phx-submit="save_card">
               <input
@@ -198,7 +211,7 @@ defmodule RiftboardWeb.BoardLive.Show do
                 id={@card_form[:title].id}
                 placeholder="Card title…"
                 required
-                autofocus
+                phx-hook="AutoFocus"
                 phx-keydown="cancel_add_card"
                 phx-key="Escape"
                 class="w-full border-0 bg-transparent p-0 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:ring-0"
@@ -210,6 +223,7 @@ defmodule RiftboardWeb.BoardLive.Show do
                 >
                   Add
                 </button>
+                
                 <button
                   type="button"
                   phx-click="cancel_add_card"
@@ -221,7 +235,7 @@ defmodule RiftboardWeb.BoardLive.Show do
             </.form>
           </div>
         </div>
-
+        
         <div :if={@adding_card_to != column.id} class="px-3 pb-3 pt-1">
           <button
             phx-click="show_add_card"
@@ -232,7 +246,7 @@ defmodule RiftboardWeb.BoardLive.Show do
           </button>
         </div>
       </div>
-
+      
       <div class="w-72 flex-shrink-0">
         <div :if={@adding_column} class="rounded-xl bg-zinc-100 px-3 py-3">
           <.form for={@column_form} phx-submit="save_column">
@@ -254,6 +268,7 @@ defmodule RiftboardWeb.BoardLive.Show do
               >
                 Add column
               </button>
+              
               <button
                 type="button"
                 phx-click="cancel_add_column"
@@ -264,7 +279,7 @@ defmodule RiftboardWeb.BoardLive.Show do
             </div>
           </.form>
         </div>
-
+        
         <button
           :if={!@adding_column}
           phx-click="show_add_column"
@@ -281,6 +296,7 @@ defmodule RiftboardWeb.BoardLive.Show do
         <div class="mt-4">
           <.input type="textarea" field={@card_edit_form[:description]} label="Description" rows="4" />
         </div>
+        
         <div class="mt-6 flex items-center justify-between">
           <button
             type="button"
@@ -291,6 +307,7 @@ defmodule RiftboardWeb.BoardLive.Show do
           >
             Delete card
           </button>
+          
           <div class="flex items-center gap-3">
             <button
               type="button"
@@ -299,6 +316,7 @@ defmodule RiftboardWeb.BoardLive.Show do
             >
               Cancel
             </button>
+            
             <.button type="submit">Save</.button>
           </div>
         </div>

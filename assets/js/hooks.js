@@ -1,6 +1,12 @@
 import Sortable from "sortablejs"
 
 const Hooks = {
+  AutoFocus: {
+    mounted() {
+      this.el.focus()
+    }
+  },
+
   Sortable: {
     mounted() {
       new Sortable(this.el, {
