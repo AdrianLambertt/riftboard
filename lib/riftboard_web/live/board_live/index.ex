@@ -42,10 +42,8 @@ defmodule RiftboardWeb.BoardLive.Index do
   end
 
   def handle_event("delete_board", %{"id" => id}, socket) do
-    board = Boards.get_board(id)
-    {:ok, _} = Boards.delete_board(board)
-    boards = Enum.reject(socket.assigns.boards, &(&1.id == board.id))
-    {:noreply, assign(socket, boards: boards)}
+    {:ok, _} = Boards.delete_board(Boards.get_board(id))
+    {:noreply, socket}
   end
 
   def handle_info({:board_updates, {%Board{} = updated_board, action}}, socket) do

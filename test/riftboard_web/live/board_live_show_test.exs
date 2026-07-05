@@ -297,4 +297,88 @@ defmodule RiftboardWeb.BoardLive.ShowTest do
       assert updated.position == 0
     end
   end
+
+  # ---------------------------------------------------------------------------
+  # PubSub — real-time show-page updates
+  # ---------------------------------------------------------------------------
+
+  describe "PubSub" do
+    test "reflects a column added from another session", %{conn: conn} do
+      board = create_board!(%{"name" => "Multi-Column Board"})
+      {:ok, lv, _html} = live(conn, ~p"/boards/#{board.id}")
+
+      Boards.create_column_for_board(board, %{"name" => "In Review"})
+
+      assert render(lv) =~ "In Review"
+    end
+
+    test "removes a column deleted from another session", %{conn: conn} do
+      board = create_board!()
+      col = get_todo_column(board)
+      {:ok, lv, _html} = live(conn, ~p"/boards/#{board.id}")
+      assert render(lv) =~ "To Do"
+
+      Boards.delete_column(col)
+
+      refute render(lv) =~ "To Do"
+    end
+
+    test "reflects a card added to a column from another session", %{conn: conn} do
+      board = create_board!()
+      col = get_todo_column(board)
+      {:ok, lv, _html} = live(conn, ~p"/boards/#{board.id}")
+
+      create_card!(col, %{"title" => "Remote Task"})
+
+      assert render(lv) =~ "Remote Task"
+    end
+
+    test "reflects a card title updated from another session", %{conn: conn} do
+      board = create_board!()
+      col = get_todo_column(board)
+      card = create_card!(col, %{"title" => "Old Title"})
+      {:ok, lv, _html} = live(conn, ~p"/boards/#{board.id}")
+
+      Boards.update_card(Riftboard.Boards.Card.changeset(card, %{"title" => "New Title"}))
+
+      html = render(lv)
+      assert html =~ "New Title"
+      refute html =~ "Old Title"
+    end
+
+    test "removes a card deleted from another session", %{conn: conn} do
+      board = create_board!()
+      col = get_todo_column(board)
+      card = create_card!(col, %{"title" => "Doomed Card"})
+      {:ok, lv, _html} = live(conn, ~p"/boards/#{board.id}")
+      assert render(lv) =~ "Doomed Card"
+
+      Boards.delete_card(card)
+
+      refute render(lv) =~ "Doomed Card"
+    end
+
+    test "reflects a card moved to another column from another session", %{conn: conn} do
+      board = create_board!()
+      col_a = get_todo_column(board)
+      {:ok, col_b} = Boards.create_column_for_board(board, %{"name" => "Done"})
+      card = create_card!(col_a, %{"title" => "Mover"})
+      {:ok, lv, _html} = live(conn, ~p"/boards/#{board.id}")
+
+      Boards.move_card(card, col_b.id, 0)
+
+      html = render(lv)
+      assert Boards.get_card(card.id).column_id == col_b.id
+      assert html =~ "Mover"
+    end
+
+    test "redirects with a flash when the board is deleted from another session", %{conn: conn} do
+      board = create_board!()
+      {:ok, lv, _html} = live(conn, ~p"/boards/#{board.id}")
+
+      Boards.delete_board(board)
+
+      assert_redirect(lv, ~p"/boards")
+    end
+  end
 end
