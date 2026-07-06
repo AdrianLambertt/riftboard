@@ -12,6 +12,7 @@ defmodule Riftboard.Application do
       Riftboard.Repo,
       {DNSCluster, query: Application.get_env(:riftboard, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Riftboard.PubSub},
+      RiftboardWeb.Presence,
       RiftboardWeb.Endpoint
     ]
 

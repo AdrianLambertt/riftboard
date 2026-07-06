@@ -2,16 +2,26 @@ defmodule RiftboardWeb.BoardLive.Show do
   use RiftboardWeb, :live_view
   alias Riftboard.Boards
   alias Riftboard.Boards.{Card, Column}
+  alias RiftboardWeb.Presence
+
+  @presence_colors ~w(#ef4444 #f97316 #eab308 #22c55e #06b6d4 #3b82f6 #8b5cf6 #ec4899)
+  @guest_adjectives ~w(Swift Calm Bright Bold Quiet Clever Happy Lucky)
+  @guest_animals ~w(Fox Owl Otter Wolf Hawk Bear Lynx Deer)
 
   def mount(%{"id" => id}, _session, socket) do
+    topic = "board:#{id}"
     # Subscribe before fetching so a concurrent update landing in between isn't missed.
-    if connected?(socket), do: Phoenix.PubSub.subscribe(Riftboard.PubSub, "board:#{id}")
+    if connected?(socket), do: Phoenix.PubSub.subscribe(Riftboard.PubSub, topic)
 
     case Boards.get_board_with_columns_and_cards(id) do
       nil ->
         {:ok, push_navigate(socket, to: ~p"/boards")}
 
       board ->
+        # A fresh random identity per connection is fine here — no auth, so
+        # there's no stable user to key presence off of.
+        if connected?(socket), do: {:ok, _} = Presence.track(self(), topic, socket.id, random_guest())
+
         {:ok,
          socket
          |> assign(:board, board)
@@ -20,7 +30,8 @@ defmodule RiftboardWeb.BoardLive.Show do
          |> assign(:adding_card_to, nil)
          |> assign(:card_form, nil)
          |> assign(:active_card, nil)
-         |> assign(:card_edit_form, nil)}
+         |> assign(:card_edit_form, nil)
+         |> assign(:presences, list_presences(topic))}
     end
   end
 
@@ -33,6 +44,23 @@ defmodule RiftboardWeb.BoardLive.Show do
      socket
      |> put_flash(:error, "This board was deleted.")
      |> push_navigate(to: ~p"/boards")}
+  end
+
+  def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff"}, socket) do
+    {:noreply, assign(socket, :presences, list_presences("board:#{socket.assigns.board.id}"))}
+  end
+
+  defp random_guest do
+    %{
+      name: "#{Enum.random(@guest_adjectives)} #{Enum.random(@guest_animals)}",
+      color: Enum.random(@presence_colors)
+    }
+  end
+
+  defp list_presences(topic) do
+    topic
+    |> Presence.list()
+    |> Enum.map(fn {_key, %{metas: [meta | _]}} -> meta end)
   end
 
   # --- Columns ---
@@ -158,6 +186,17 @@ defmodule RiftboardWeb.BoardLive.Show do
       </.link>
 
       <h1 class="text-lg font-bold text-zinc-900">{@board.name}</h1>
+
+      <div class="ml-auto flex -space-x-2">
+        <div
+          :for={presence <- @presences}
+          title={presence.name}
+          class="flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold text-white ring-2 ring-white"
+          style={"background-color: #{presence.color}"}
+        >
+          {String.first(presence.name)}
+        </div>
+      </div>
     </div>
 
     <div class="flex items-start gap-3 overflow-x-auto pb-6">
