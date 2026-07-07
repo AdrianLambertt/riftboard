@@ -62,7 +62,7 @@ config :riftboard, RiftboardWeb.Endpoint,
     ]
   ]
 
-# Enable dev routes for dashboard and mailbox
+# Enable dev routes for dashboard
 config :riftboard, dev_routes: true
 
 # Do not include metadata nor timestamps in development logs
