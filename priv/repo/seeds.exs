@@ -2,10 +2,7 @@
 #
 #     mix run priv/repo/seeds.exs
 #
-# Inside the script, you can read and write to any of your
-# repositories directly:
-#
-#     Riftboard.Repo.insert!(%Riftboard.SomeSchema{})
-#
-# We recommend using the bang functions (`insert!`, `update!`
-# and so on) as they will fail if something goes wrong.
+# This wipes all boards and re-inserts the fixed demo board used on the
+# public Fly.io instance (see Riftboard.Seeds / RESET_DEMO_DATA_ON_BOOT).
+
+Riftboard.Seeds.reset()
