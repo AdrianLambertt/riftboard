@@ -4,21 +4,18 @@ defmodule Riftboard.Accounts.User do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   schema "users" do
-    field :email, :string
+    field :username, :string
     field :password, :string, virtual: true, redact: true
     field :hashed_password, :string, redact: true
-    field :current_password, :string, virtual: true, redact: true
+    field :display_name, :string
+    field :color, :string
+    field :is_guest, :boolean, default: false
 
     timestamps(type: :utc_datetime)
   end
 
   @doc """
   A user changeset for registration.
-
-  It is important to validate the length of both email and password.
-  Otherwise databases may truncate the email without warnings, which
-  could lead to unpredictable or insecure behaviour. Long passwords may
-  also be very expensive to hash for certain algorithms.
 
   ## Options
 
@@ -29,35 +26,47 @@ defmodule Riftboard.Accounts.User do
       validations on a LiveView form), this option can be set to `false`.
       Defaults to `true`.
 
-    * `:validate_email` - Validates the uniqueness of the email, in case
-      you don't want to validate the uniqueness of the email (like when
+    * `:validate_username` - Validates the uniqueness of the username, in case
+      you don't want to validate the uniqueness of the username (like when
       using this changeset for validations on a LiveView form before
       submitting the form), this option can be set to `false`.
       Defaults to `true`.
   """
   def registration_changeset(user, attrs, opts \\ []) do
     user
-    |> cast(attrs, [:email, :password])
-    |> validate_email(opts)
+    |> cast(attrs, [:username, :password, :display_name, :color, :is_guest])
+    |> validate_username(opts)
     |> validate_password(opts)
+    |> maybe_put_random_identity()
   end
 
-  defp validate_email(changeset, opts) do
+  defp maybe_put_random_identity(changeset) do
+    identity = Riftboard.Accounts.random_guest_identity()
+
     changeset
-    |> validate_required([:email])
-    |> validate_format(:email, ~r/^[^\s]+@[^\s]+$/, message: "must have the @ sign and no spaces")
-    |> validate_length(:email, max: 160)
-    |> maybe_validate_unique_email(opts)
+    |> put_default(:display_name, identity.name)
+    |> put_default(:color, identity.color)
+  end
+
+  defp put_default(changeset, field, default) do
+    if get_field(changeset, field) in [nil, ""] do
+      put_change(changeset, field, default)
+    else
+      changeset
+    end
+  end
+
+  defp validate_username(changeset, opts) do
+    changeset
+    |> validate_required([:username])
+    |> validate_length(:username, min: 3, max: 64)
+    |> maybe_validate_unique_username(opts)
   end
 
   defp validate_password(changeset, opts) do
     changeset
     |> validate_required([:password])
     |> validate_length(:password, min: 12, max: 72)
-    # Examples of additional password validation:
-    # |> validate_format(:password, ~r/[a-z]/, message: "at least one lower case character")
-    # |> validate_format(:password, ~r/[A-Z]/, message: "at least one upper case character")
-    # |> validate_format(:password, ~r/[!?@#$%^&*_0-9]/, message: "at least one digit or punctuation character")
     |> maybe_hash_password(opts)
   end
 
@@ -76,33 +85,14 @@ defmodule Riftboard.Accounts.User do
     end
   end
 
-  defp maybe_validate_unique_email(changeset, opts) do
-    if Keyword.get(opts, :validate_email, true) do
+  defp maybe_validate_unique_username(changeset, opts) do
+    if Keyword.get(opts, :validate_username, true) do
       changeset
-      |> unsafe_validate_unique(:email, Riftboard.Repo)
-      |> unique_constraint(:email)
+      |> unsafe_validate_unique(:username, Riftboard.Repo)
+      |> unique_constraint(:username)
     else
       changeset
     end
-  end
-
-  @doc """
-  A user changeset for changing the password.
-
-  ## Options
-
-    * `:hash_password` - Hashes the password so it can be stored securely
-      in the database and ensures the password field is cleared to prevent
-      leaks in the logs. If password hashing is not needed and clearing the
-      password field is not desired (like when using this changeset for
-      validations on a LiveView form), this option can be set to `false`.
-      Defaults to `true`.
-  """
-  def password_changeset(user, attrs, opts \\ []) do
-    user
-    |> cast(attrs, [:password])
-    |> validate_confirmation(:password, message: "does not match password")
-    |> validate_password(opts)
   end
 
   @doc """
@@ -119,18 +109,5 @@ defmodule Riftboard.Accounts.User do
   def valid_password?(_, _) do
     Pbkdf2.no_user_verify()
     false
-  end
-
-  @doc """
-  Validates the current password otherwise adds an error to the changeset.
-  """
-  def validate_current_password(changeset, password) do
-    changeset = cast(changeset, %{current_password: password}, [:current_password])
-
-    if valid_password?(changeset.data, password) do
-      changeset
-    else
-      add_error(changeset, :current_password, "is not valid")
-    end
   end
 end

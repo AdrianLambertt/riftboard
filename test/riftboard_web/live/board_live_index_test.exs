@@ -6,6 +6,8 @@ defmodule RiftboardWeb.BoardLive.IndexTest do
   alias Riftboard.Boards
   alias Riftboard.Boards.Board
 
+  setup :register_and_log_in_user
+
   defp create_board!(attrs) do
     {:ok, board} =
       Boards.create_board(Board.changeset(%Board{}, Map.merge(%{"name" => "Test Board"}, attrs)))

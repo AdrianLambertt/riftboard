@@ -11,32 +11,17 @@ defmodule RiftboardWeb.UserSessionControllerTest do
     test "logs the user in", %{conn: conn, user: user} do
       conn =
         post(conn, ~p"/users/log_in", %{
-          "user" => %{"email" => user.email, "password" => valid_user_password()}
+          "user" => %{"username" => user.username, "password" => valid_user_password()}
         })
 
       assert get_session(conn, :user_token)
       assert redirected_to(conn) == ~p"/"
 
-      # Now do a logged in request and assert on the menu (root redirects to /boards)
+      # Now do a logged in request and assert on the header (root redirects to /boards)
       conn = get(conn, ~p"/")
       response = conn |> get(redirected_to(conn)) |> html_response(200)
-      assert response =~ user.email
-      assert response =~ ~p"/users/settings"
+      assert response =~ user.display_name
       assert response =~ ~p"/users/log_out"
-    end
-
-    test "logs the user in with remember me", %{conn: conn, user: user} do
-      conn =
-        post(conn, ~p"/users/log_in", %{
-          "user" => %{
-            "email" => user.email,
-            "password" => valid_user_password(),
-            "remember_me" => "true"
-          }
-        })
-
-      assert conn.resp_cookies["_riftboard_web_user_remember_me"]
-      assert redirected_to(conn) == ~p"/"
     end
 
     test "logs the user in with return to", %{conn: conn, user: user} do
@@ -45,7 +30,7 @@ defmodule RiftboardWeb.UserSessionControllerTest do
         |> init_test_session(user_return_to: "/foo/bar")
         |> post(~p"/users/log_in", %{
           "user" => %{
-            "email" => user.email,
+            "username" => user.username,
             "password" => valid_user_password()
           }
         })
@@ -60,7 +45,7 @@ defmodule RiftboardWeb.UserSessionControllerTest do
         |> post(~p"/users/log_in", %{
           "_action" => "registered",
           "user" => %{
-            "email" => user.email,
+            "username" => user.username,
             "password" => valid_user_password()
           }
         })
@@ -69,29 +54,30 @@ defmodule RiftboardWeb.UserSessionControllerTest do
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Account created successfully"
     end
 
-    test "login following password update", %{conn: conn, user: user} do
-      conn =
-        conn
-        |> post(~p"/users/log_in", %{
-          "_action" => "password_updated",
-          "user" => %{
-            "email" => user.email,
-            "password" => valid_user_password()
-          }
-        })
-
-      assert redirected_to(conn) == ~p"/users/settings"
-      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Password updated successfully"
-    end
-
     test "redirects to login page with invalid credentials", %{conn: conn} do
       conn =
         post(conn, ~p"/users/log_in", %{
-          "user" => %{"email" => "invalid@email.com", "password" => "invalid_password"}
+          "user" => %{"username" => "unknown_user", "password" => "invalid_password"}
         })
 
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Invalid email or password"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Invalid username or password"
       assert redirected_to(conn) == ~p"/users/log_in"
+    end
+  end
+
+  describe "POST /users/guest" do
+    test "logs in as a fresh guest user", %{conn: conn} do
+      conn = post(conn, ~p"/users/guest")
+
+      assert get_session(conn, :user_token)
+      assert redirected_to(conn) == ~p"/"
+    end
+
+    test "repeated hits create distinct users", %{conn: conn} do
+      conn1 = post(conn, ~p"/users/guest")
+      conn2 = post(conn, ~p"/users/guest")
+
+      refute get_session(conn1, :user_token) == get_session(conn2, :user_token)
     end
   end
 

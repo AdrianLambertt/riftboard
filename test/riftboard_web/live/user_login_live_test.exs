@@ -9,7 +9,8 @@ defmodule RiftboardWeb.UserLoginLiveTest do
       {:ok, _lv, html} = live(conn, ~p"/users/log_in")
 
       assert html =~ "Log in"
-      assert html =~ "Register"
+      assert html =~ "Create account"
+      assert html =~ "Continue as Guest"
     end
 
     test "redirects if already logged in", %{conn: conn} do
@@ -21,6 +22,22 @@ defmodule RiftboardWeb.UserLoginLiveTest do
 
       assert {:ok, _conn} = result
     end
+
+    test "clicking the segmented control switches between login and register forms", %{
+      conn: conn
+    } do
+      {:ok, lv, html} = live(conn, ~p"/users/log_in")
+      assert html =~ ~s|id="login_form"|
+      refute html =~ ~s|id="registration_form"|
+
+      html = lv |> element("button[phx-value-mode='register']") |> render_click()
+      refute html =~ ~s|id="login_form"|
+      assert html =~ ~s|id="registration_form"|
+
+      html = lv |> element("button[phx-value-mode='login']") |> render_click()
+      assert html =~ ~s|id="login_form"|
+      refute html =~ ~s|id="registration_form"|
+    end
   end
 
   describe "user login" do
@@ -30,8 +47,7 @@ defmodule RiftboardWeb.UserLoginLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/users/log_in")
 
-      form =
-        form(lv, "#login_form", user: %{email: user.email, password: password, remember_me: true})
+      form = form(lv, "#login_form", user: %{username: user.username, password: password})
 
       conn = submit_form(form, conn)
 
@@ -44,29 +60,62 @@ defmodule RiftboardWeb.UserLoginLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/users/log_in")
 
       form =
-        form(lv, "#login_form",
-          user: %{email: "test@email.com", password: "123456", remember_me: true}
-        )
+        form(lv, "#login_form", user: %{username: "unknown_user", password: "123456"})
 
       conn = submit_form(form, conn)
 
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Invalid email or password"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Invalid username or password"
 
       assert redirected_to(conn) == "/users/log_in"
     end
   end
 
-  describe "login navigation" do
-    test "redirects to registration page when the Register button is clicked", %{conn: conn} do
+  describe "register user" do
+    test "creates account and logs the user in", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/users/log_in")
+      lv |> element("button[phx-value-mode='register']") |> render_click()
 
-      {:ok, _login_live, login_html} =
+      username = unique_username()
+      form = form(lv, "#registration_form", user: valid_user_attributes(username: username))
+      render_submit(form)
+      conn = follow_trigger_action(form, conn)
+
+      assert redirected_to(conn) == ~p"/"
+
+      # Now do a logged in request and assert on the header (root redirects to /boards)
+      conn = get(conn, "/")
+      response = conn |> get(redirected_to(conn)) |> html_response(200)
+      assert response =~ username
+      assert response =~ "Log out"
+    end
+
+    test "renders errors for duplicated username", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/log_in")
+      lv |> element("button[phx-value-mode='register']") |> render_click()
+
+      user = user_fixture(%{username: "taken_username"})
+
+      result =
         lv
-        |> element(~s|main a:fl-contains("Sign up")|)
-        |> render_click()
-        |> follow_redirect(conn, ~p"/users/register")
+        |> form("#registration_form",
+          user: %{"username" => user.username, "password" => "valid_password"}
+        )
+        |> render_submit()
 
-      assert login_html =~ "Register"
+      assert result =~ "has already been taken"
+    end
+
+    test "renders errors for invalid data", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/log_in")
+      lv |> element("button[phx-value-mode='register']") |> render_click()
+
+      result =
+        lv
+        |> element("#registration_form")
+        |> render_change(user: %{"username" => "ab", "password" => "too short"})
+
+      assert result =~ "should be at least 3 character"
+      assert result =~ "should be at least 12 character"
     end
   end
 end

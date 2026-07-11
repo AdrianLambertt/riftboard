@@ -21,9 +21,17 @@ defmodule RiftboardWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
-    live "/boards", BoardLive.Index, :index
-    live "/boards/new", BoardLive.Index, :new
-    live "/boards/:id", BoardLive.Show, :show
+  end
+
+  scope "/", RiftboardWeb do
+    pipe_through [:browser, :require_authenticated_user]
+
+    live_session :require_authenticated_user,
+      on_mount: [{RiftboardWeb.UserAuth, :ensure_authenticated}] do
+      live "/boards", BoardLive.Index, :index
+      live "/boards/new", BoardLive.Index, :new
+      live "/boards/:id", BoardLive.Show, :show
+    end
   end
 
   # Other scopes may use custom stacks.
@@ -54,20 +62,11 @@ defmodule RiftboardWeb.Router do
 
     live_session :redirect_if_user_is_authenticated,
       on_mount: [{RiftboardWeb.UserAuth, :redirect_if_user_is_authenticated}] do
-      live "/users/register", UserRegistrationLive, :new
       live "/users/log_in", UserLoginLive, :new
     end
 
     post "/users/log_in", UserSessionController, :create
-  end
-
-  scope "/", RiftboardWeb do
-    pipe_through [:browser, :require_authenticated_user]
-
-    live_session :require_authenticated_user,
-      on_mount: [{RiftboardWeb.UserAuth, :ensure_authenticated}] do
-      live "/users/settings", UserSettingsLive, :edit
-    end
+    post "/users/guest", UserSessionController, :guest_login
   end
 
   scope "/", RiftboardWeb do

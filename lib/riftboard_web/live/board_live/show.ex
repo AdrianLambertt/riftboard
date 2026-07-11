@@ -4,10 +4,6 @@ defmodule RiftboardWeb.BoardLive.Show do
   alias Riftboard.Boards.{Card, Column}
   alias RiftboardWeb.Presence
 
-  @presence_colors ~w(#ef4444 #f97316 #eab308 #22c55e #06b6d4 #3b82f6 #8b5cf6 #ec4899)
-  @guest_adjectives ~w(Swift Calm Bright Bold Quiet Clever Happy Lucky)
-  @guest_animals ~w(Fox Owl Otter Wolf Hawk Bear Lynx Deer)
-
   def mount(%{"id" => id}, _session, socket) do
     topic = "board:#{id}"
     # Subscribe before fetching so a concurrent update landing in between isn't missed.
@@ -18,9 +14,17 @@ defmodule RiftboardWeb.BoardLive.Show do
         {:ok, push_navigate(socket, to: ~p"/boards")}
 
       board ->
-        # A fresh random identity per connection is fine here — no auth, so
-        # there's no stable user to key presence off of.
-        if connected?(socket), do: {:ok, _} = Presence.track(self(), topic, socket.id, random_guest())
+        current_user = socket.assigns.current_user
+
+        # Keyed by the stable user id so multiple tabs from the same user
+        # collapse into one presence entry instead of stacking duplicates.
+        if connected?(socket) do
+          {:ok, _} =
+            Presence.track(self(), topic, to_string(current_user.id), %{
+              name: current_user.display_name,
+              color: current_user.color
+            })
+        end
 
         {:ok,
          socket
@@ -48,13 +52,6 @@ defmodule RiftboardWeb.BoardLive.Show do
 
   def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff"}, socket) do
     {:noreply, assign(socket, :presences, list_presences("board:#{socket.assigns.board.id}"))}
-  end
-
-  defp random_guest do
-    %{
-      name: "#{Enum.random(@guest_adjectives)} #{Enum.random(@guest_animals)}",
-      color: Enum.random(@presence_colors)
-    }
   end
 
   defp list_presences(topic) do

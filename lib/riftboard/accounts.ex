@@ -8,39 +8,38 @@ defmodule Riftboard.Accounts do
 
   alias Riftboard.Accounts.{User, UserToken}
 
+  @guest_colors ~w(#ef4444 #f97316 #eab308 #22c55e #06b6d4 #3b82f6 #8b5cf6 #ec4899)
+  @guest_adjectives ~w(Swift Calm Bright Bold Quiet Clever Happy Lucky)
+  @guest_animals ~w(Fox Owl Otter Wolf Hawk Bear Lynx Deer)
+
+  @doc """
+  Generates a random display name + color pair, used for both guest accounts
+  and to fill in a real user's profile if they didn't set one.
+  """
+  def random_guest_identity do
+    %{
+      name: "#{Enum.random(@guest_adjectives)} #{Enum.random(@guest_animals)}",
+      color: Enum.random(@guest_colors)
+    }
+  end
+
   ## Database getters
 
   @doc """
-  Gets a user by email.
+  Gets a user by username and password.
 
   ## Examples
 
-      iex> get_user_by_email("foo@example.com")
+      iex> get_user_by_username_and_password("alice", "correct_password")
       %User{}
 
-      iex> get_user_by_email("unknown@example.com")
+      iex> get_user_by_username_and_password("alice", "invalid_password")
       nil
 
   """
-  def get_user_by_email(email) when is_binary(email) do
-    Repo.get_by(User, email: email)
-  end
-
-  @doc """
-  Gets a user by email and password.
-
-  ## Examples
-
-      iex> get_user_by_email_and_password("foo@example.com", "correct_password")
-      %User{}
-
-      iex> get_user_by_email_and_password("foo@example.com", "invalid_password")
-      nil
-
-  """
-  def get_user_by_email_and_password(email, password)
-      when is_binary(email) and is_binary(password) do
-    user = Repo.get_by(User, email: email)
+  def get_user_by_username_and_password(username, password)
+      when is_binary(username) and is_binary(password) do
+    user = Repo.get_by(User, username: username)
     if User.valid_password?(user, password), do: user
   end
 
@@ -90,50 +89,32 @@ defmodule Riftboard.Accounts do
 
   """
   def change_user_registration(%User{} = user, attrs \\ %{}) do
-    User.registration_changeset(user, attrs, hash_password: false, validate_email: false)
-  end
-
-  ## Settings
-
-  @doc """
-  Returns an `%Ecto.Changeset{}` for changing the user password.
-
-  ## Examples
-
-      iex> change_user_password(user)
-      %Ecto.Changeset{data: %User{}}
-
-  """
-  def change_user_password(user, attrs \\ %{}) do
-    User.password_changeset(user, attrs, hash_password: false)
+    User.registration_changeset(user, attrs, hash_password: false, validate_username: false)
   end
 
   @doc """
-  Updates the user password.
-
-  ## Examples
-
-      iex> update_user_password(user, "valid password", %{password: ...})
-      {:ok, %User{}}
-
-      iex> update_user_password(user, "invalid password", %{password: ...})
-      {:error, %Ecto.Changeset{}}
-
+  Registers a guest user with a random display name and no real credentials —
+  used by the "Continue as Guest" button.
   """
-  def update_user_password(user, password, attrs) do
-    changeset =
-      user
-      |> User.password_changeset(attrs)
-      |> User.validate_current_password(password)
+  def register_guest_user do
+    register_user(%{
+      "username" => "guest-#{Ecto.UUID.generate()}",
+      "password" => :crypto.strong_rand_bytes(24) |> Base.url_encode64(),
+      "is_guest" => true
+    })
+  end
 
-    Ecto.Multi.new()
-    |> Ecto.Multi.update(:user, changeset)
-    |> Ecto.Multi.delete_all(:tokens, UserToken.by_user_and_contexts_query(user, :all))
-    |> Repo.transaction()
-    |> case do
-      {:ok, %{user: user}} -> {:ok, user}
-      {:error, :user, changeset, _} -> {:error, changeset}
-    end
+  @doc """
+  Registers a user under a chosen username + password — used by the
+  "Create account" form on the login screen.
+  """
+  def register_named_user(username, password) do
+    register_user(%{
+      "username" => username,
+      "password" => password,
+      "display_name" => username,
+      "is_guest" => false
+    })
   end
 
   ## Session

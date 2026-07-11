@@ -6,6 +6,8 @@ defmodule RiftboardWeb.BoardLive.ShowTest do
   alias Riftboard.Boards
   alias Riftboard.Boards.Board
 
+  setup :register_and_log_in_user
+
   # ---------------------------------------------------------------------------
   # Helpers
   # ---------------------------------------------------------------------------
