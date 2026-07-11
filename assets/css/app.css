@@ -3,3 +3,16 @@
 @import "tailwindcss/utilities";
 
 /* This file is for your main application CSS */
+
+@keyframes activity-badge-fade-out {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.activity-badge {
+  animation: activity-badge-fade-out 5s linear forwards;
+}

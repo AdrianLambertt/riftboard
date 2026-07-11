@@ -29,6 +29,13 @@ defmodule RiftboardWeb.BoardLive.ShowTest do
     card
   end
 
+  defp connect_second_viewer(board) do
+    other_user = Riftboard.AccountsFixtures.user_fixture()
+    other_conn = Phoenix.ConnTest.build_conn() |> log_in_user(other_user)
+    {:ok, other_lv, _html} = live(other_conn, ~p"/boards/#{board.id}")
+    {other_lv, other_user}
+  end
+
   # ---------------------------------------------------------------------------
   # mount
   # ---------------------------------------------------------------------------
@@ -381,6 +388,118 @@ defmodule RiftboardWeb.BoardLive.ShowTest do
       Boards.delete_board(board)
 
       assert_redirect(lv, ~p"/boards")
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Presence tooltip
+  # ---------------------------------------------------------------------------
+
+  describe "presence tooltip" do
+    test "shows the viewer's display name in a hover tooltip", %{conn: conn, user: user} do
+      board = create_board!()
+      {:ok, _lv, html} = live(conn, ~p"/boards/#{board.id}")
+
+      assert html =~ user.display_name
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Activity badges
+  # ---------------------------------------------------------------------------
+
+  describe "activity badges" do
+    test "creating a card shows the actor's badge to other viewers, not the actor", %{
+      conn: conn,
+      user: user
+    } do
+      board = create_board!()
+      col = get_todo_column(board)
+      {other_lv, _other_user} = connect_second_viewer(board)
+
+      {:ok, lv, _html} = live(conn, ~p"/boards/#{board.id}")
+
+      lv
+      |> element("button[phx-click='show_add_card'][phx-value-column_id='#{col.id}']")
+      |> render_click()
+
+      lv |> form("form[phx-submit='save_card']", card: %{title: "New Task"}) |> render_submit()
+
+      other_html = render(other_lv)
+      assert other_html =~ "activity-badge"
+      assert other_html =~ user.display_name
+      refute render(lv) =~ "activity-badge"
+    end
+
+    test "moving a card shows the badge to other viewers, not the actor", %{conn: conn} do
+      board = create_board!()
+      col = get_todo_column(board)
+      card = create_card!(col, %{"title" => "C0"})
+      create_card!(col, %{"title" => "C1"})
+      {other_lv, _other_user} = connect_second_viewer(board)
+      {:ok, lv, _html} = live(conn, ~p"/boards/#{board.id}")
+
+      render_hook(lv, "card_moved", %{
+        "card_id" => card.id,
+        "column_id" => col.id,
+        "position" => 1
+      })
+
+      assert render(other_lv) =~ "activity-badge"
+      refute render(lv) =~ "activity-badge"
+    end
+
+    test "editing a card shows the badge to other viewers, not the actor", %{conn: conn} do
+      board = create_board!()
+      col = get_todo_column(board)
+      card = create_card!(col, %{"title" => "Old Title"})
+      {other_lv, _other_user} = connect_second_viewer(board)
+      {:ok, lv, _html} = live(conn, ~p"/boards/#{board.id}")
+
+      lv |> element("#card-#{card.id}") |> render_click()
+      lv |> form("form[phx-submit='update_card']", card: %{title: "New Title"}) |> render_submit()
+
+      assert render(other_lv) =~ "activity-badge"
+      refute render(lv) =~ "activity-badge"
+    end
+
+    test "deleting a card does not add an activity badge", %{conn: conn} do
+      board = create_board!()
+      col = get_todo_column(board)
+      card = create_card!(col, %{"title" => "Doomed Card"})
+      {other_lv, _other_user} = connect_second_viewer(board)
+      {:ok, lv, _html} = live(conn, ~p"/boards/#{board.id}")
+
+      lv |> element("#card-#{card.id}") |> render_click()
+
+      lv
+      |> element("button[phx-click='delete_card'][phx-value-id='#{card.id}']")
+      |> render_click()
+
+      refute render(lv) =~ "activity-badge"
+      refute render(other_lv) =~ "activity-badge"
+    end
+
+    test "the badge clears once its expiry message fires", %{conn: conn} do
+      board = create_board!()
+      col = get_todo_column(board)
+      card = create_card!(col, %{"title" => "C0"})
+      create_card!(col, %{"title" => "C1"})
+      {other_lv, _other_user} = connect_second_viewer(board)
+      {:ok, lv, _html} = live(conn, ~p"/boards/#{board.id}")
+
+      render_hook(lv, "card_moved", %{
+        "card_id" => card.id,
+        "column_id" => col.id,
+        "position" => 1
+      })
+
+      assert render(other_lv) =~ "activity-badge"
+
+      [activity] = :sys.get_state(other_lv.pid).socket.assigns.activities
+      send(other_lv.pid, {:clear_activity, activity.id})
+
+      refute render(other_lv) =~ "activity-badge"
     end
   end
 end

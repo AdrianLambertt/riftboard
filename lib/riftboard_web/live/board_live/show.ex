@@ -4,6 +4,8 @@ defmodule RiftboardWeb.BoardLive.Show do
   alias Riftboard.Boards.{Card, Column}
   alias RiftboardWeb.Presence
 
+  @activity_ttl_ms 7_000
+
   def mount(%{"id" => id}, _session, socket) do
     topic = "board:#{id}"
     # Subscribe before fetching so a concurrent update landing in between isn't missed.
@@ -35,7 +37,8 @@ defmodule RiftboardWeb.BoardLive.Show do
          |> assign(:card_form, nil)
          |> assign(:active_card, nil)
          |> assign(:card_edit_form, nil)
-         |> assign(:presences, list_presences(topic))}
+         |> assign(:presences, list_presences(topic))
+         |> assign(:activities, [])}
     end
   end
 
@@ -54,10 +57,45 @@ defmodule RiftboardWeb.BoardLive.Show do
     {:noreply, assign(socket, :presences, list_presences("board:#{socket.assigns.board.id}"))}
   end
 
+  def handle_info({:user_activity, activity}, socket) do
+    if activity.name != socket.assigns.current_user.display_name do
+      Process.send_after(self(), {:clear_activity, activity.id}, @activity_ttl_ms)
+      {:noreply, update(socket, :activities, &(&1 ++ [activity]))}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:clear_activity, id}, socket) do
+    {:noreply, update(socket, :activities, &Enum.reject(&1, fn a -> a.id == id end))}
+  end
+
   defp list_presences(topic) do
     topic
     |> Presence.list()
     |> Enum.map(fn {_key, %{metas: [meta | _]}} -> meta end)
+  end
+
+  # Broadcasts a transient "who just touched this card" badge to everyone viewing this board.
+  # Linked by card_id, so only used when the card exists after (create/edit/move, not delete).
+  defp broadcast_activity(socket, card_id) do
+    current_user = socket.assigns.current_user
+    topic = "board:#{socket.assigns.board.id}"
+
+    activity = %{
+      id: System.unique_integer([:positive, :monotonic]),
+      card_id: card_id,
+      name: current_user.display_name,
+      color: current_user.color
+    }
+
+    Phoenix.PubSub.broadcast(Riftboard.PubSub, topic, {:user_activity, activity})
+  end
+
+  defp activity_for(activities, card_id) do
+    activities
+    |> Enum.reverse()
+    |> Enum.find(&(&1.card_id == card_id))
   end
 
   # --- Columns ---
@@ -109,7 +147,8 @@ defmodule RiftboardWeb.BoardLive.Show do
     column = Boards.get_column(socket.assigns.adding_card_to)
 
     case Boards.create_card_for_column(column, params) do
-      {:ok, _} ->
+      {:ok, card} ->
+        broadcast_activity(socket, card.id)
         {:noreply, assign(socket, adding_card_to: nil, card_form: nil)}
 
       {:error, changeset} ->
@@ -142,7 +181,9 @@ defmodule RiftboardWeb.BoardLive.Show do
     changeset = Card.changeset(socket.assigns.active_card, params)
 
     case Boards.update_card(changeset) do
-      {:ok, _} ->
+      {:ok, card} ->
+        broadcast_activity(socket, card.id)
+
         {:noreply,
          assign(socket,
            active_card: nil,
@@ -172,6 +213,7 @@ defmodule RiftboardWeb.BoardLive.Show do
       ) do
     card = Boards.get_card(card_id)
     {:ok, _} = Boards.move_card(card, column_id, position)
+    broadcast_activity(socket, card_id)
     {:noreply, socket}
   end
 
@@ -185,14 +227,7 @@ defmodule RiftboardWeb.BoardLive.Show do
       <h1 class="text-lg font-bold text-zinc-900">{@board.name}</h1>
 
       <div class="ml-auto flex -space-x-2">
-        <div
-          :for={presence <- @presences}
-          title={presence.name}
-          class="flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold text-white ring-2 ring-white"
-          style={"background-color: #{presence.color}"}
-        >
-          {String.first(presence.name)}
-        </div>
+        <.presence_avatar :for={presence <- @presences} presence={presence} />
       </div>
     </div>
 
@@ -220,7 +255,7 @@ defmodule RiftboardWeb.BoardLive.Show do
           id={"cards-#{column.id}"}
           data-column-id={column.id}
           phx-hook="Sortable"
-          class="flex-1 space-y-2 overflow-y-auto px-3 pb-2"
+          class="flex-1 space-y-2 overflow-y-auto px-3 pb-2 pt-3"
         >
           <div
             :for={card <- column.cards}
@@ -228,8 +263,10 @@ defmodule RiftboardWeb.BoardLive.Show do
             data-card-id={card.id}
             phx-click="open_card"
             phx-value-id={card.id}
-            class="cursor-pointer rounded-lg bg-white px-3 py-2.5 shadow-sm transition-shadow hover:shadow"
+            class="relative cursor-pointer rounded-lg bg-white px-3 py-2.5 shadow-sm transition-shadow hover:shadow"
           >
+            <.activity_badge activity={activity_for(@activities, card.id)} />
+
             <p class="text-sm font-medium leading-snug text-zinc-900">{card.title}</p>
 
             <p
@@ -359,6 +396,54 @@ defmodule RiftboardWeb.BoardLive.Show do
         </div>
       </.form>
     </.modal>
+    """
+  end
+
+  defp presence_avatar(assigns) do
+    ~H"""
+    <div class="group relative">
+      <div
+        class="flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold text-white ring-2 ring-white"
+        style={"background-color: #{@presence.color}"}
+      >
+        {String.first(@presence.name)}
+      </div>
+
+      <div class="pointer-events-none absolute right-0 top-full z-20 mt-2 hidden items-center gap-2 whitespace-nowrap rounded-lg bg-zinc-900 px-2.5 py-1.5 text-xs text-white shadow-lg group-hover:flex">
+        <div
+          class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
+          style={"background-color: #{@presence.color}"}
+        >
+          {String.first(@presence.name)}
+        </div>
+        <span class="font-medium">{@presence.name}</span>
+      </div>
+    </div>
+    """
+  end
+
+  defp activity_badge(%{activity: nil} = assigns), do: ~H""
+
+  defp activity_badge(assigns) do
+    ~H"""
+    <div class="group absolute -right-2 -top-2 z-10">
+      <div
+        class="activity-badge flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white ring-2 ring-white"
+        style={"background-color: #{@activity.color}"}
+      >
+        {String.first(@activity.name)}
+      </div>
+
+      <div class="pointer-events-none absolute right-0 top-full z-20 mt-2 hidden items-center gap-2 whitespace-nowrap rounded-lg bg-zinc-900 px-2.5 py-1.5 text-xs text-white shadow-lg group-hover:flex">
+        <div
+          class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
+          style={"background-color: #{@activity.color}"}
+        >
+          {String.first(@activity.name)}
+        </div>
+        <span class="font-medium">{@activity.name}</span>
+      </div>
+    </div>
     """
   end
 end
