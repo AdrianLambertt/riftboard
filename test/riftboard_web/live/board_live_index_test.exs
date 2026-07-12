@@ -131,7 +131,10 @@ defmodule RiftboardWeb.BoardLive.IndexTest do
 
     test "reflects a card added to a column from another session", %{conn: conn} do
       board = create_board!(%{"name" => "Card Count Board"})
-      todo_col = Riftboard.Repo.preload(board, :columns).columns |> Enum.find(&(&1.name == "To Do"))
+
+      todo_col =
+        Riftboard.Repo.preload(board, :columns).columns |> Enum.find(&(&1.name == "To Do"))
+
       {:ok, lv, _html} = live(conn, ~p"/boards")
 
       Boards.create_card_for_column(todo_col, %{"title" => "Remote Task"})
@@ -152,7 +155,10 @@ defmodule RiftboardWeb.BoardLive.IndexTest do
 
     test "updates card count when a card is deleted from another session", %{conn: conn} do
       board = create_board!(%{"name" => "Card Delete Board"})
-      todo_col = Riftboard.Repo.preload(board, :columns).columns |> Enum.find(&(&1.name == "To Do"))
+
+      todo_col =
+        Riftboard.Repo.preload(board, :columns).columns |> Enum.find(&(&1.name == "To Do"))
+
       {:ok, card} = Boards.create_card_for_column(todo_col, %{"title" => "Removable"})
       {:ok, lv, _html} = live(conn, ~p"/boards")
 

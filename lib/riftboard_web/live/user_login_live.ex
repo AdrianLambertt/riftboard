@@ -10,12 +10,10 @@ defmodule RiftboardWeb.UserLoginLive do
       <.header class="text-center">Welcome to Riftboard</.header>
 
       <div class="relative mt-8 flex rounded-lg bg-zinc-100 p-1 text-sm font-semibold">
-        <span
-          class={[
-            "absolute inset-y-1 left-1 w-1/2 rounded-md bg-white shadow transition-transform duration-200 ease-out",
-            @mode == :register && "translate-x-full"
-          ]}
-        />
+        <span class={[
+          "absolute inset-y-1 left-1 w-1/2 rounded-md bg-white shadow transition-transform duration-200 ease-out",
+          @mode == :register && "translate-x-full"
+        ]} />
         <button
           type="button"
           phx-click="switch_mode"
@@ -43,12 +41,7 @@ defmodule RiftboardWeb.UserLoginLive do
       </div>
 
       <div :if={@mode == :login} class="mt-8">
-        <.simple_form
-          for={@login_form}
-          id="login_form"
-          action={~p"/users/log_in"}
-          phx-update="ignore"
-        >
+        <.simple_form for={@login_form} id="login_form" action={~p"/users/log_in"} phx-update="ignore">
           <.input
             field={@login_form[:username]}
             id="login_username"

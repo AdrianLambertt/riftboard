@@ -39,7 +39,9 @@ if config_env() == :prod do
   # When enabled, every app boot (including scale-to-zero wake-ups, since
   # auto_stop_machines is on) wipes all boards and re-inserts fixed demo
   # data. See Riftboard.Seeds / Riftboard.Application.
-  config :riftboard, :reset_demo_data_on_boot, System.get_env("RESET_DEMO_DATA_ON_BOOT") in ~w(true 1)
+  config :riftboard,
+         :reset_demo_data_on_boot,
+         System.get_env("RESET_DEMO_DATA_ON_BOOT") in ~w(true 1)
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you

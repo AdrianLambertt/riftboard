@@ -223,9 +223,9 @@ defmodule RiftboardWeb.BoardLive.Show do
       <.link navigate={~p"/boards"} class="text-zinc-400 transition-colors hover:text-zinc-600">
         <.icon name="hero-arrow-left" class="h-5 w-5" />
       </.link>
-
+      
       <h1 class="text-lg font-bold text-zinc-900">{@board.name}</h1>
-
+      
       <div class="ml-auto flex -space-x-2">
         <.presence_avatar :for={presence <- @presences} presence={presence} />
       </div>
@@ -240,7 +240,7 @@ defmodule RiftboardWeb.BoardLive.Show do
       >
         <div class="flex items-center justify-between px-3 pb-2 pt-3">
           <h2 class="text-sm font-semibold text-zinc-700">{column.name}</h2>
-
+          
           <button
             phx-click="delete_column"
             phx-value-id={column.id}
@@ -250,7 +250,7 @@ defmodule RiftboardWeb.BoardLive.Show do
             <.icon name="hero-x-mark" class="h-4 w-4" />
           </button>
         </div>
-
+        
         <div
           id={"cards-#{column.id}"}
           data-column-id={column.id}
@@ -266,9 +266,8 @@ defmodule RiftboardWeb.BoardLive.Show do
             class="relative cursor-pointer rounded-lg bg-white px-3 py-2.5 shadow-sm transition-shadow hover:shadow"
           >
             <.activity_badge activity={activity_for(@activities, card.id)} />
-
             <p class="text-sm font-medium leading-snug text-zinc-900">{card.title}</p>
-
+            
             <p
               :if={card.description && card.description != ""}
               class="mt-1 line-clamp-2 text-xs text-zinc-500"
@@ -276,7 +275,7 @@ defmodule RiftboardWeb.BoardLive.Show do
               {card.description}
             </p>
           </div>
-
+          
           <div :if={@adding_card_to == column.id} class="rounded-lg bg-white px-3 py-2 shadow-sm">
             <.form for={@card_form} phx-submit="save_card">
               <input
@@ -297,7 +296,7 @@ defmodule RiftboardWeb.BoardLive.Show do
                 >
                   Add
                 </button>
-
+                
                 <button
                   type="button"
                   phx-click="cancel_add_card"
@@ -309,7 +308,7 @@ defmodule RiftboardWeb.BoardLive.Show do
             </.form>
           </div>
         </div>
-
+        
         <div :if={@adding_card_to != column.id} class="px-3 pb-3 pt-1">
           <button
             phx-click="show_add_card"
@@ -320,7 +319,7 @@ defmodule RiftboardWeb.BoardLive.Show do
           </button>
         </div>
       </div>
-
+      
       <div class="w-72 flex-shrink-0">
         <div :if={@adding_column} class="rounded-xl bg-zinc-100 px-3 py-3">
           <.form for={@column_form} phx-submit="save_column">
@@ -342,7 +341,7 @@ defmodule RiftboardWeb.BoardLive.Show do
               >
                 Add column
               </button>
-
+              
               <button
                 type="button"
                 phx-click="cancel_add_column"
@@ -353,7 +352,7 @@ defmodule RiftboardWeb.BoardLive.Show do
             </div>
           </.form>
         </div>
-
+        
         <button
           :if={!@adding_column}
           phx-click="show_add_column"
@@ -370,7 +369,7 @@ defmodule RiftboardWeb.BoardLive.Show do
         <div class="mt-4">
           <.input type="textarea" field={@card_edit_form[:description]} label="Description" rows="4" />
         </div>
-
+        
         <div class="mt-6 flex items-center justify-between">
           <button
             type="button"
@@ -381,7 +380,7 @@ defmodule RiftboardWeb.BoardLive.Show do
           >
             Delete card
           </button>
-
+          
           <div class="flex items-center gap-3">
             <button
               type="button"
@@ -390,7 +389,7 @@ defmodule RiftboardWeb.BoardLive.Show do
             >
               Cancel
             </button>
-
+            
             <.button type="submit">Save</.button>
           </div>
         </div>
@@ -408,7 +407,7 @@ defmodule RiftboardWeb.BoardLive.Show do
       >
         {String.first(@presence.name)}
       </div>
-
+      
       <div class="pointer-events-none absolute right-0 top-full z-20 mt-2 hidden items-center gap-2 whitespace-nowrap rounded-lg bg-zinc-900 px-2.5 py-1.5 text-xs text-white shadow-lg group-hover:flex">
         <div
           class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
@@ -416,7 +415,7 @@ defmodule RiftboardWeb.BoardLive.Show do
         >
           {String.first(@presence.name)}
         </div>
-        <span class="font-medium">{@presence.name}</span>
+         <span class="font-medium">{@presence.name}</span>
       </div>
     </div>
     """
@@ -433,15 +432,15 @@ defmodule RiftboardWeb.BoardLive.Show do
       >
         {String.first(@activity.name)}
       </div>
-
-      <div class="pointer-events-none absolute right-0 top-full z-20 mt-2 hidden items-center gap-2 whitespace-nowrap rounded-lg bg-zinc-900 px-2.5 py-1.5 text-xs text-white shadow-lg group-hover:flex">
+      
+      <div class="pointer-events-none absolute right-full top-1/2 z-20 mr-2 hidden -translate-y-1/2 items-center gap-2 whitespace-nowrap rounded-lg bg-zinc-900 px-2.5 py-1.5 text-xs text-white shadow-lg group-hover:flex">
         <div
           class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
           style={"background-color: #{@activity.color}"}
         >
           {String.first(@activity.name)}
         </div>
-        <span class="font-medium">{@activity.name}</span>
+         <span class="font-medium">{@activity.name}</span>
       </div>
     </div>
     """
